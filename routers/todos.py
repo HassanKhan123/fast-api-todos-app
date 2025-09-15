@@ -5,6 +5,7 @@ from starlette import status
 from pydantic import BaseModel, Field
 from models import Todos
 from database import SessionLocal
+from .auth import get_current_user
 
 
 router = APIRouter()
@@ -19,6 +20,7 @@ def get_db():
 
 
 db_dependency = Annotated[Session, Depends(get_db)]
+user_dependency = Annotated[dict, Depends(get_current_user)]
 
 
 class TodoRequest(BaseModel):
@@ -42,8 +44,14 @@ def read_todo(db: db_dependency, todo_id: int = Path(gt=0)):
 
 
 @router.post("/todos/", status_code=status.HTTP_201_CREATED)
-def create_todo(db: db_dependency, todo: TodoRequest):
-    todo_model = Todos(**todo.model_dump())
+async def create_todo(user: user_dependency, db: db_dependency, todo: TodoRequest):
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    todo_model = Todos(**todo.model_dump(), owner_id=user.get("id"))
     db.add(todo_model)
     db.commit()
     return todo_model
