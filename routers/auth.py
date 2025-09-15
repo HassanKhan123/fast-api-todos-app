@@ -7,16 +7,19 @@ from pydantic import BaseModel, Field
 from models import Users
 from passlib.context import CryptContext
 from database import SessionLocal
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt
 
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/auth", tags=["auth"]
+)
 
 SECRET_KEY = "b87f4f5a2f63518d5d67f5c1caf86d0647b68f7d4f3e4eb261ae24e059527b35"
 ALGORITHM = "HS256"
 
 bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_bearer = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
 class CreateUserRequest(BaseModel):
@@ -60,7 +63,27 @@ def create_access_token(username: str, user_id: int, expires_delta: timedelta):
     return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-@router.post("/auth", status_code=status.HTTP_201_CREATED)
+def get_current_user(token: Annotated[str, Depends(oauth2_bearer)], db: Session):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        user_id: int = payload.get("id")
+        if username is None or user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return {"username": username, "id": user_id}
+    except jwt.JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+@router.post("/", status_code=status.HTTP_201_CREATED)
 def create_user(db: db_dependency, create_user_request: CreateUserRequest):
     user_model = Users(
         username=create_user_request.username,
@@ -82,7 +105,10 @@ def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depen
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
-            status_code=400, detail="Incorrect username or password")
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     token = create_access_token(
         username=user.username, user_id=user.id, expires_delta=timedelta(minutes=30))
 
