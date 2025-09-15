@@ -31,13 +31,26 @@ class TodoRequest(BaseModel):
 
 
 @router.get("/", status_code=status.HTTP_200_OK)
-def read_all(db: db_dependency):
-    return db.query(Todos).all()
+def read_all(user: user_dependency, db: db_dependency):
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return db.query(Todos).filter(Todos.owner_id == user.get("id")).all()
 
 
 @router.get("/todos/{todo_id}", status_code=status.HTTP_200_OK)
-def read_todo(db: db_dependency, todo_id: int = Path(gt=0)):
-    todo_model = db.query(Todos).filter(Todos.id == todo_id).first()
+def read_todo(user: user_dependency, db: db_dependency, todo_id: int = Path(gt=0)):
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    todo_model = db.query(Todos).filter(Todos.id == todo_id).filter(
+        Todos.owner_id == user.get("id")).first()
     if todo_model is not None:
         return todo_model
     raise HTTPException(status_code=404, detail="Todo not found")
@@ -58,8 +71,15 @@ async def create_todo(user: user_dependency, db: db_dependency, todo: TodoReques
 
 
 @router.put("/todos/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def update_todo(db: db_dependency, todo: TodoRequest, todo_id: int = Path(gt=0)):
-    todo_model = db.query(Todos).filter(Todos.id == todo_id).first()
+def update_todo(user: user_dependency, db: db_dependency, todo: TodoRequest, todo_id: int = Path(gt=0)):
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    todo_model = db.query(Todos).filter(Todos.id == todo_id).filter(
+        Todos.owner_id == user.get("id")).first()
     if todo_model is None:
         raise HTTPException(status_code=404, detail="Todo not found")
     todo_model.title = todo.title
@@ -72,9 +92,17 @@ def update_todo(db: db_dependency, todo: TodoRequest, todo_id: int = Path(gt=0))
 
 
 @router.delete("/todos/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_todo(db: db_dependency, todo_id: int = Path(gt=0)):
-    todo_model = db.query(Todos).filter(Todos.id == todo_id).first()
+def delete_todo(user: user_dependency, db: db_dependency, todo_id: int = Path(gt=0)):
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    todo_model = db.query(Todos).filter(Todos.id == todo_id).filter(
+        Todos.owner_id == user.get("id")).first()
     if todo_model is None:
         raise HTTPException(status_code=404, detail="Todo not found")
-    db.query(Todos).filter(Todos.id == todo_id).delete()
+    db.query(Todos).filter(Todos.id == todo_id).filter(
+        Todos.owner_id == user.get("id")).delete()
     db.commit()
