@@ -1,11 +1,17 @@
 from fastapi import FastAPI
-import models
-from database import engine
-from routers import auth, todos, admin, users
+from .models import Base
+from .database import engine
+from .routers import auth, todos, admin, users
 
 app = FastAPI()
 
-models.Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
+
+
+@app.get("/health")
+def read_root():
+    return {"message": "Welcome to the FastAPI application!", "status": "Healthy"}
+
 
 app.include_router(auth.router)
 app.include_router(todos.router)
