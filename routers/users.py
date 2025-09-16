@@ -77,3 +77,23 @@ def change_password(user_data: UserVerification, user: user_dependency, db: db_d
     db.add(db_user)
     db.commit()
     return
+
+
+@router.put("/phonenumber/{phone_number}", status_code=status.HTTP_204_NO_CONTENT)
+def change_phone_number(user: user_dependency, db: db_dependency, phone_number: str = Path(min_length=10, max_length=15),):
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    db_user = db.query(Users).filter(Users.id == user['id']).first()
+    if db_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    db_user.phone_number = phone_number
+    db.add(db_user)
+    db.commit()
+    return
